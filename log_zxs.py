@@ -52,7 +52,7 @@ class Zxs_log():
 
     def addFilters_setLevel_Formatter(func):
         @wraps(func)
-        def wrapper_addFilters_setLevel_Formatter(self, level_filters: list[str] = None, level: str = None, formatter: str = None, notice_formatter=False, *args, **kwargs):
+        def wrapper_addFilters_setLevel_Formatter(self, level_filters: list[str] = None, level: str = None, formatter: str = None, notice_formatter: bool = False, *args, **kwargs):
             '''
             level_filters: 那些 level 的信息允许通过，错误 levelname，将没有警告报错
             level: setLevel 的值
@@ -79,7 +79,8 @@ class Zxs_log():
             raise ValueError(f"There is No such {handlerType} handler in logging!")
 
         if (filename := kwargs.get("filename", None)):
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            kwargs["filename"] = kwargs["filename"].replace("<name>", self.user_name)
+            os.makedirs(os.path.dirname(kwargs["filename"]), exist_ok=True)
         handler = handlerClass(*args, **kwargs)
         return handler
 
@@ -89,9 +90,6 @@ class Zxs_log():
         dirname: log 存放的文件夹路径
         handlers: 哪些 handler 加入这个 logger？列表项为 handler 配置的 key
         '''
-        if self.user_name != "main":
-            dirname = dirname.replace("<name>", self.user_name)
-            kwargs["name"] = kwargs["name"].replace("<name>", self.user_name)
         logger = logging.getLogger(*args, **kwargs)
         for handler in handlers:
             if "filename" in (temp_config := deepcopy(self.config[handler])):
