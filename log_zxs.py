@@ -79,8 +79,7 @@ class Zxs_log():
             raise ValueError(f"There is No such {handlerType} handler in logging!")
 
         if (filename := kwargs.get("filename", None)):
-            kwargs["filename"] = kwargs["filename"].replace("<name>", self.user_name)
-            os.makedirs(os.path.dirname(kwargs["filename"]), exist_ok=True)
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
         handler = handlerClass(*args, **kwargs)
         return handler
 
@@ -96,6 +95,7 @@ class Zxs_log():
                 temp_config["filename"] = temp_config["filename"].replace("<name>", self.user_name)
                 temp_config["filename"] = os.path.join(
                     dirname, temp_config["filename"])
+                temp_config["filename"] = temp_config["filename"].replace("<name>",self.user_name)
             logger.addHandler(self.setup_handler(**temp_config))
         return logger
 
