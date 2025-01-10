@@ -1,0 +1,92 @@
+# ====================================================
+# ====================================================
+# ====================================================
+# =====================log configuration==============
+[log_formatter]
+fmt = "[%(asctime)s %(levelname)s] %(message)s"
+datefmt = "%Y:%m:%d %H:%S:%M"
+
+# =====================system log configuration ======
+[log_system]
+name = "System Logger"
+
+level = "DEBUG"
+dirname = "./logs"
+handlers = ["log_debug_rotatingFileHandler","log_warning_rotatingFileHandler","log_error_streamHandler","log_error_rotatingFileHandler"]
+
+# system handler
+
+[log_debug_rotatingFileHandler]
+filename = "system_debug.log"
+mode = "a"
+maxBytes = 5242880 # 5 MB
+backupCount = 20
+
+handlerType = "RotatingFileHandler"
+level = "DEBUG"
+formatter = "log_formatter"
+
+
+[log_warning_rotatingFileHandler]
+filename = "system_warning.log"
+mode = "a"
+maxBytes = 5242880 # 5 MB
+backupCount = 20
+
+handlerType = "RotatingFileHandler"
+level = "WARNING"
+level_filters = ["WARNING"]
+formatter = "log_formatter"
+
+[log_error_rotatingFileHandler]
+filename = "system_error.log"
+mode = "a"
+maxBytes = 5242880 # 5 MB
+backupCount = 20
+
+handlerType = "RotatingFileHandler"
+level = "ERROR"
+formatter = "log_formatter"
+
+[log_error_streamHandler]
+
+handlerType = "StreamHandler"
+level = "ERROR"
+formatter = "log_formatter"
+
+# =====================user log configuration ======
+[log_user]
+name = "<name>_user_log"
+
+dirname = "./logs/users/<name>"
+level = "INFO"
+handlers = ["log_userinfo_rotatingFile_hander","log_user_streamHandler","log_userWarning_rotatingFileHandler"]
+
+# user log handler
+[log_userinfo_rotatingFile_hander]
+filename = "<name>_user_info.log"
+mode = "a"
+maxBytes = 5242880 # 5 MB
+backupCount = 20
+
+handlerType = "RotatingFileHandler"
+level = "INFO"
+formatter = "log_formatter"
+
+[log_user_streamHandler]
+
+handlerType = "StreamHandler"
+level = "WARNING"
+# 和 formatter 互斥，为 true 则只进行提示，不显示明细。
+notice_formatter = true
+
+[log_userWarning_rotatingFileHandler]
+filename = "<name>_user_warning.log"
+mode = "a"
+maxBytes = 5242880 # 5 MB
+backupCount = 20
+
+handlerType = "RotatingFileHandler"
+level = "WARNING"
+formatter = "log_formatter"
+
