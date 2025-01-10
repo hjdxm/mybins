@@ -92,10 +92,9 @@ class Zxs_log():
         logger = logging.getLogger(*args, **kwargs)
         for handler in handlers:
             if "filename" in (temp_config := deepcopy(self.config[handler])):
-                temp_config["filename"] = temp_config["filename"].replace("<name>", self.user_name)
                 temp_config["filename"] = os.path.join(
                     dirname, temp_config["filename"])
-                temp_config["filename"] = temp_config["filename"].replace("<name>",self.user_name)
+                temp_config["filename"] = temp_config["filename"].replace("<name>", self.user_name)
             logger.addHandler(self.setup_handler(**temp_config))
         return logger
 
