@@ -29,10 +29,6 @@ class Zxs_log():
         def filter(self, record):
             return (record.levelno in self.filters)
 
-    class Notice_formatter(logging.Formatter):
-        def format(self, record):
-            return f"[{record.asctime}] {record.name} 发生了一条 {record.levelname} 日志！请进入相应日志查看明细。"
-
     def __init__(self, config: Union[str, dict] = "log_zxs.toml"):
         if isinstance(config, dict):
             self.config = config
@@ -52,7 +48,7 @@ class Zxs_log():
 
     def addFilters_setLevel_Formatter(func):
         @wraps(func)
-        def wrapper_addFilters_setLevel_Formatter(self, level_filters: list[str] = None, level: str = None, formatter: str = None, notice_formatter: bool = False, *args, **kwargs):
+        def wrapper_addFilters_setLevel_Formatter(self, level_filters: list[str] = None, level: str = None, formatter: str = None, *args, **kwargs):
             '''
             level_filters: 那些 level 的信息允许通过，错误 levelname，将没有警告报错
             level: setLevel 的值
@@ -65,8 +61,6 @@ class Zxs_log():
                 result.setLevel(level)
             if formatter:
                 result.setFormatter(self.setup_formatter(**self.config[formatter]))
-            if notice_formatter:
-                result.setFormatter(self.Notice_formatter())
             return result
         return wrapper_addFilters_setLevel_Formatter
 
@@ -89,6 +83,7 @@ class Zxs_log():
         dirname: log 存放的文件夹路径
         handlers: 哪些 handler 加入这个 logger？列表项为 handler 配置的 key
         '''
+        kwargs["name"] = kwargs["name"].replace("<name>", self.user_name)
         logger = logging.getLogger(*args, **kwargs)
         for handler in handlers:
             if "filename" in (temp_config := deepcopy(self.config[handler])):
@@ -102,12 +97,14 @@ class Zxs_log():
         '''
         log_config_key: 配置文件中 logger 配置的 key
         '''
-        if (log := self.logs.get(user_name, None)):
+        if (dic := self.logs.get(log_config_key, None)) and (log := self.logs[log_config_key].get(user_name, None)):
             pass
         else:
             self.user_name = user_name
             log = self.setup_logger(**self.config[log_config_key])
-            self.logs[user_name] = log
+            if dic is None:
+                self.logs[log_config_key] = dict()
+            self.logs[log_config_key][user_name] = log
         return log
 
 
@@ -140,4 +137,4 @@ if __name__ == "__main__":
     logger.warning("This is warning!")
     logger.error("This is error!")
     logger.critical("This is critical!")
-    print(logs.logs.keys())
+    print(logs.logs)

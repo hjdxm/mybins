@@ -6,6 +6,10 @@
 fmt = "[%(asctime)s %(levelname)s] %(message)s"
 datefmt = "%Y:%m:%d %H:%S:%M"
 
+[log_notice_formatter]
+fmt = "[%(asctime)s %(levelname)s] %(name)s 记录了一条异常日志！"
+datefmt = "%Y:%m:%d %H:%S:%M"
+
 # =====================system log configuration ======
 [log_system]
 name = "System Logger"
@@ -77,8 +81,7 @@ formatter = "log_formatter"
 
 handlerType = "StreamHandler"
 level = "WARNING"
-# 和 formatter 互斥，为 true 则只进行提示，不显示明细。
-notice_formatter = true
+formatter = "log_notice_formatter"
 
 [log_userWarning_rotatingFileHandler]
 filename = "<name>_user_warning.log"
