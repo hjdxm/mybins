@@ -3,7 +3,7 @@
 # ====================================================
 # =====================log configuration==============
 [log_formatter]
-fmt = "[%(asctime)s %(levelname)s] %(message)s"
+fmt = "[%(asctime)s %(levelname)s %(name)s] %(message)s"
 datefmt = "%Y:%m:%d %H:%S:%M"
 
 [log_notice_formatter]
@@ -12,16 +12,16 @@ datefmt = "%Y:%m:%d %H:%S:%M"
 
 # =====================system log configuration ======
 [log_system]
-name = "System Logger"
+name = "System_Logger_<name>"
 
 level = "DEBUG"
-dirname = "./logs"
+dirname = "./logs/systems/<name>"
 handlers = ["log_debug_rotatingFileHandler","log_warning_rotatingFileHandler","log_error_streamHandler","log_error_rotatingFileHandler"]
 
 # system handler
 
 [log_debug_rotatingFileHandler]
-filename = "system_debug.log"
+filename = "<name>_system_debug.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
 backupCount = 20
@@ -32,7 +32,7 @@ formatter = "log_formatter"
 
 
 [log_warning_rotatingFileHandler]
-filename = "system_warning.log"
+filename = "<name>_system_warning.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
 backupCount = 20
@@ -43,7 +43,7 @@ level_filters = ["WARNING"]
 formatter = "log_formatter"
 
 [log_error_rotatingFileHandler]
-filename = "system_error.log"
+filename = "<name>_system_error.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
 backupCount = 20
