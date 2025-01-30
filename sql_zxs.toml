@@ -1,0 +1,27 @@
+[sqlite]
+url = "sqlite:///test_sqlite.db"
+echo = true
+
+authentication_default_values = "sqlite_authentication_database_default_values"
+
+[sqlite_authentication_database_default_values]
+
+expired_time = "2030-01-01 00:00:00"
+date_fmt = "%Y-%m-%d %H:%M:%S"
+max_login_times = 5
+max_error_times = 5
+is_deleted = false
+group_comment = "Default user group"
+login_times = 0
+error_times = 0
+auth_group_id = 1
+
+[user_login]
+
+password = "ccjjfff"
+delete_flag = false
+allowed_login = true
+allowed_login_times = -1 # -1 indicates no limits
+allowed_login_datetime = "2040-12-31 23:59:59"
+allowed_error_password_times = 5
+error_password_times = 0
