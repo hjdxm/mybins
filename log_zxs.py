@@ -29,19 +29,15 @@ class Zxs_log():
         def filter(self, record):
             return (record.levelno in self.filters)
 
-    def __init__(self, config: Union[str, dict] = "log_zxs.toml"):
+    def __init__(self, config_key: str = "log", config: Union[str, dict] = "log_zxs.toml"):
         if isinstance(config, dict):
-            self.config = config
+            temp = deepcopy(config)
         else:
-            self.read_config(config)
+            with open(config, "r", encoding="utf-8") as f:
+                temp = toml.load(f)
+        self.config = temp[config_key]
         self.logs = dict()
 
-    def read_config(self, config: str):
-        '''
-        str: 只接受文件路径
-        '''
-        with open(config, "r", encoding="utf-8") as f:
-            self.config = toml.load(f)
 
     def setup_formatter(self, *args, **kwargs):
         return logging.Formatter(*args, **kwargs)

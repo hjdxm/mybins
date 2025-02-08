@@ -2,16 +2,16 @@
 # ====================================================
 # ====================================================
 # =====================log configuration==============
-[log_formatter]
+[log.log_formatter]
 fmt = "[%(asctime)s %(levelname)s %(name)s] %(message)s"
 datefmt = "%Y:%m:%d %H:%S:%M"
 
-[log_notice_formatter]
+[log.log_notice_formatter]
 fmt = "[%(asctime)s %(levelname)s] %(name)s 记录了一条异常日志！"
 datefmt = "%Y:%m:%d %H:%S:%M"
 
 # =====================system log configuration ======
-[log_system]
+[log.log_system]
 name = "System_Logger_<name>"
 
 level = "DEBUG"
@@ -20,7 +20,7 @@ handlers = ["log_debug_rotatingFileHandler","log_warning_rotatingFileHandler","l
 
 # system handler
 
-[log_debug_rotatingFileHandler]
+[log.log_debug_rotatingFileHandler]
 filename = "<name>_system_debug.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
@@ -31,7 +31,7 @@ level = "DEBUG"
 formatter = "log_formatter"
 
 
-[log_warning_rotatingFileHandler]
+[log.log_warning_rotatingFileHandler]
 filename = "<name>_system_warning.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
@@ -42,7 +42,7 @@ level = "WARNING"
 level_filters = ["WARNING"]
 formatter = "log_formatter"
 
-[log_error_rotatingFileHandler]
+[log.log_error_rotatingFileHandler]
 filename = "<name>_system_error.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
@@ -52,14 +52,14 @@ handlerType = "RotatingFileHandler"
 level = "ERROR"
 formatter = "log_formatter"
 
-[log_error_streamHandler]
+[log.log_error_streamHandler]
 
 handlerType = "StreamHandler"
 level = "ERROR"
 formatter = "log_formatter"
 
 # =====================user log configuration ======
-[log_user]
+[log.log_user]
 name = "<name>_user_log"
 
 dirname = "./logs/users/<name>"
@@ -67,7 +67,7 @@ level = "INFO"
 handlers = ["log_userinfo_rotatingFile_hander","log_user_streamHandler","log_userWarning_rotatingFileHandler"]
 
 # user log handler
-[log_userinfo_rotatingFile_hander]
+[log.log_userinfo_rotatingFile_hander]
 filename = "<name>_user_info.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
@@ -77,13 +77,13 @@ handlerType = "RotatingFileHandler"
 level = "INFO"
 formatter = "log_formatter"
 
-[log_user_streamHandler]
+[log.log_user_streamHandler]
 
 handlerType = "StreamHandler"
 level = "WARNING"
 formatter = "log_notice_formatter"
 
-[log_userWarning_rotatingFileHandler]
+[log.log_userWarning_rotatingFileHandler]
 filename = "<name>_user_warning.log"
 mode = "a"
 maxBytes = 5242880 # 5 MB
