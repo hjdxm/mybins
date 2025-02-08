@@ -1,27 +1,30 @@
 [sqlite]
-url = "sqlite:///test_sqlite.db"
-echo = true
 
-authentication_default_values = "sqlite_authentication_database_default_values"
+[sqlite.engine]
+        url = "sqlite:///test_sqlite.db"
+        echo = false
 
-[sqlite_authentication_database_default_values]
+[sqlite.user]
+        successed_login_times=0
+        failed_login_times=0
 
-expired_time = "2030-01-01 00:00:00"
-date_fmt = "%Y-%m-%d %H:%M:%S"
-max_login_times = 5
-max_error_times = 5
-is_deleted = false
-group_comment = "Default user group"
-login_times = 0
-error_times = 0
-auth_group_id = 1
+        user_permission=["default"]
+        auth_group="default"
 
-[user_login]
+[sqlite.group]
+        max_successed_login_times= 300
+        max_failed_login_times= 5
+        expired_time= "2030-01-01 00:00:00"
+        is_deleted=false
+        group_comment="default"
 
-password = "ccjjfff"
-delete_flag = false
-allowed_login = true
-allowed_login_times = -1 # -1 indicates no limits
-allowed_login_datetime = "2040-12-31 23:59:59"
-allowed_error_password_times = 5
-error_password_times = 0
+        group_permission=["default"]
+
+[sqlite.permission]
+        permission_name="default"
+        permission_docu="默认权限"
+
+[sqlite.datetemplate]
+        date_string = "2030-01-01 00:00:00"
+        format = "%Y-%m-%d %H:%M:%S"
+

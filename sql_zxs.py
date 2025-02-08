@@ -1,38 +1,63 @@
 from contextlib import contextmanager
+from copy import deepcopy
+from typing_extensions import Annotated
+from typing import Union, List, Any, Generator, Optional
+from datetime import datetime
+
+from passlib.context import CryptContext
 import sqlalchemy
 import sqlalchemy.orm
 import toml
-from copy import deepcopy
-from typing_extensions import Annotated
-from typing import Union, List, Any, Generator
-from datetime import datetime
 
-table_primary_key = Annotated[int,
-                              sqlalchemy.orm.mapped_column(primary_key=True)]
-requiredAccountString = Annotated[str, sqlalchemy.orm.mapped_column(
-    sqlalchemy.String(20), nullable=False)]
+pwc = CryptContext(schemes=['bcrypt'], deprecated="auto")
+
+
+def verify_password(plain_pw: str, hashed_pw: str) -> bool:
+    return pwc.verify(plain_pw, hashed_pw)
+
+
+def hash_a_pw(plain_pw: str) -> str:
+    return pwc.hash(plain_pw)
+
+
+table_primary_key = Annotated[int, sqlalchemy.orm.mapped_column(primary_key=True)]
+requiredAccountString = Annotated[str, sqlalchemy.orm.mapped_column(sqlalchemy.String(20), nullable=False)]
 notNullInt = Annotated[int, sqlalchemy.orm.mapped_column(nullable=False)]
-
-THE_USER_EXISTS = -1
-AN_ILLEGAL_GROUP = -2
 
 
 class Zxs_sql_user_authentication():
 
-    # Class
+    # Global Variables
+
     Base = sqlalchemy.orm.declarative_base()
     engine = None
-    authentication_default_values = {
-        "expired_time": "2030-01-01 00:00:00",
-        "date_fmt": "%Y-%m-%d %H:%M:%S",
-        "max_login_times": 5,
-        "max_error_times": 5,
-        "is_deleted": False,
-        "group_comment": "Default user group",
-        "login_times": 0,
-        "error_times": 0,
-        "auth_group_id": 1
-    }
+
+    # Tables
+
+    _User_permission_table = sqlalchemy.Table(
+        "user_permission_table",
+        Base.metadata,
+        sqlalchemy.Column("user_id", sqlalchemy.ForeignKey("user_login.user_id"), primary_key=True),
+        sqlalchemy.Column("permission_id", sqlalchemy.ForeignKey("permissions.permission_id"), primary_key=True)
+    )
+    _User_group_permission_table = sqlalchemy.Table(
+        "user_group_permission_table",
+        Base.metadata,
+        sqlalchemy.Column("auth_group_id", sqlalchemy.ForeignKey("authentication_group.auth_group_id"), primary_key=True),
+        sqlalchemy.Column("permission_id", sqlalchemy.ForeignKey("permissions.permission_id"), primary_key=True)
+    )
+
+    class _Permission(Base):
+        __tablename__ = "permissions"
+        permission_id: sqlalchemy.orm.Mapped[table_primary_key]
+        permission_name: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(sqlalchemy.String(20), nullable=False, index=True, unique=True)
+        permission_docu: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(sqlalchemy.String(100))
+
+        allowed_user: sqlalchemy.orm.Mapped[set["Zxs_sql_user_authentication._User_login"]] = sqlalchemy.orm.relationship("_User_login", secondary="user_permission_table", lazy=True, back_populates="user_permission")
+        allowed_group: sqlalchemy.orm.Mapped[set["Zxs_sql_user_authentication._Authentication_group"]] = sqlalchemy.orm.relationship("_Authentication_group", secondary="user_group_permission_table", lazy=True, back_populates="group_permission")
+
+        def __repr__(self):
+            return f"permission_id:{self.permission_id}\tpermission_name:{self.permission_name}\tpermission_docu:{self.permission_docu}\trelationship:allowed_user, allowed_group"
 
     class _Authentication_group(Base):
         __tablename__ = "authentication_group"
@@ -40,42 +65,65 @@ class Zxs_sql_user_authentication():
         auth_group_id: sqlalchemy.orm.Mapped[table_primary_key]
         max_successed_login_times: sqlalchemy.orm.Mapped[notNullInt]
         max_failed_login_times: sqlalchemy.orm.Mapped[notNullInt]
-        expired_time: sqlalchemy.orm.Mapped[datetime] = sqlalchemy.orm.mapped_column(
-            nullable=False)
-        is_deleted: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(
-            nullable=False)
-        group_comment: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(
-            sqlalchemy.String(50), nullable=False, index=True, unique=True)
+        expired_time: sqlalchemy.orm.Mapped[datetime] = sqlalchemy.orm.mapped_column(nullable=False)
+        is_deleted: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(nullable=False)
+        group_comment: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(sqlalchemy.String(50), nullable=False, index=True, unique=True)
 
-        user_login: sqlalchemy.orm.Mapped[List["Zxs_sql_user_authentication._User_login"]] = sqlalchemy.orm.relationship(
-            "_User_login", lazy=True, back_populates="auth_group")
+        group_permission: sqlalchemy.orm.Mapped[set["Zxs_sql_user_authentication._Permission"]] = sqlalchemy.orm.relationship("_Permission", secondary="user_group_permission_table", lazy=False, back_populates="allowed_group")
+        user_login: sqlalchemy.orm.Mapped[List["Zxs_sql_user_authentication._User_login"]] = sqlalchemy.orm.relationship("_User_login", lazy=True, back_populates="auth_group")
 
         def __repr__(self):
-            return f"auth_group_id:{self.auth_group_id}\tmax_successed_login_times:{self.max_successed_login_times}\tmax_failed_login_times:{self.max_failed_login_times}\texpired_time:{self.expired_time}\tis_deleted:{self.is_deleted}\tgroup_comment:{self.group_comment}\t"
+            return f"auth_group_id:{self.auth_group_id}\tmax_successed_login_times:{self.max_successed_login_times}\tmax_failed_login_times:{self.max_failed_login_times}\texpired_time:{self.expired_time}\tis_deleted:{self.is_deleted}\tgroup_comment:{self.group_comment}\tRelationship:group_permission, user_login"
+
+        def to_dict(self):
+            temp = {
+                "auth_group_id": self.auth_group_id,
+                "max_successed_login_times": self.max_successed_login_times,
+                "max_failed_login_times": self.max_failed_login_times,
+                "expired_time": self.expired_time,
+                "is_deleted": self.is_deleted,
+                "group_comment": self.group_comment,
+                "group_scopes": set([x.permission_name for x in self.group_permission])}
+            return temp
 
     class _User_login(Base):
         __tablename__ = "user_login"
 
         user_id: sqlalchemy.orm.Mapped[table_primary_key]
-        password: sqlalchemy.orm.Mapped[requiredAccountString]
         nickname: sqlalchemy.orm.Mapped[requiredAccountString]
         successed_login_times: sqlalchemy.orm.Mapped[notNullInt]
         failed_login_times: sqlalchemy.orm.Mapped[notNullInt]
-        account: sqlalchemy.orm.Mapped[requiredAccountString] = sqlalchemy.orm.mapped_column(
-            unique=True, index=True)
-        auth_group_fk: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
-            sqlalchemy.ForeignKey("authentication_group.auth_group_id"), nullable=False)
+        hashed_pw: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(sqlalchemy.String(256), nullable=False)
+        account: sqlalchemy.orm.Mapped[requiredAccountString] = sqlalchemy.orm.mapped_column(unique=True, index=True)
+        auth_group_fk: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(sqlalchemy.ForeignKey("authentication_group.auth_group_id"), nullable=False)
 
-        auth_group: sqlalchemy.orm.Mapped["Zxs_sql_user_authentication._Authentication_group"] = sqlalchemy.orm.relationship(
-            "_Authentication_group", lazy=False, back_populates="user_login")
+        user_permission: sqlalchemy.orm.Mapped[set["Zxs_sql_user_authentication._Permission"]] = sqlalchemy.orm.relationship("_Permission", secondary="user_permission_table", lazy=False)
+        auth_group: sqlalchemy.orm.Mapped["Zxs_sql_user_authentication._Authentication_group"] = sqlalchemy.orm.relationship("_Authentication_group", lazy=False, back_populates="user_login")
 
         def __repr__(self):
-            return f"user_id:{self.user_id}\tpassword:{self.password}\tnickname:{self.nickname}\tsuccessed_login_times:{self.successed_login_times}\tfailed_login_times:{self.failed_login_times}\taccount:{self.account}\tauth_group_fk:{self.auth_group_fk}"
+            return f"user_id:{self.user_id}\tpassword:{self.hashed_pw}\tnickname:{self.nickname}\tsuccessed_login_times:{self.successed_login_times}\tfailed_login_times:{self.failed_login_times}\taccount:{self.account}\tauth_group_fk:{self.auth_group_fk}\trelationship: auth_group, user_permission"
 
-    # Exception
+        def to_dict(self):
+            result = {"user_id": self.user_id,
+                      "nickname": self.nickname,
+                      "successed_login_times": self.successed_login_times,
+                      "failed_login_times": self.failed_login_times,
+                      "hashed_pw": self.hashed_pw,
+                      "account": self.account,
+                      "user_permission": self.user_permission,
+                      "auth_group": self.auth_group}
+            result.update(self.auth_group.to_dict())
+            result["user_scopes"] = set([x.permission_name for x in self.user_permission])
+            result["scopes"] = result["user_scopes"].copy()
+            result["scopes"].update(result["group_scopes"])
+            for key in ["user_permission", "auth_group"]:
+                result.pop(key)
+            return result
+
+    # Exceptions
 
     class RecordExistsError(Exception):
-        def __init__(self, item: Union["Zxs_sql_user_authentication._Authentication_group", "Zxs_sql_user_authentication._User_login"]):
+        def __init__(self, item: Union["Zxs_sql_user_authentication._Authentication_group", "Zxs_sql_user_authentication._User_login", "Zxs_sql_user_authentication._Permission"]):
             if isinstance(item, Zxs_sql_user_authentication._Authentication_group):
                 info = f"The user group already exists: {item.group_comment}"
             else:
@@ -86,75 +134,133 @@ class Zxs_sql_user_authentication():
         def __init__(self, info: str):
             super().__init__(info)
 
-    # Instance
+    class RecordNotExistsError(Exception):
+        def __init__(self, records: Any):
+            super().__init__(f"The record is not exists:{records}")
 
-    def __init__(self, config: Union[str, dict], engine_conf: str):
-        '''
-        config: 字典或者配置的文件路径
-        engine_conf: 配置字典中的 key
-        '''
-        if isinstance(config, str):
-            conf = self.read_config(config)
-        else:
-            conf = deepcopy(config)
-        self.conf = conf
-        self._init_engine(**conf[engine_conf])
+    # Static methods
 
-    def _init_engine(
-            self, authentication_default_values: Union[str, None] = None, *args, **kwargs) -> None:
-        '''
-        连接引擎，并初始化认证数据的默认值
-        '''
-        self.engine = sqlalchemy.create_engine(*args, **kwargs)
-        if authentication_default_values is not None:
-            self.authentication_default_values.update(
-                self.conf[authentication_default_values])
-
-    def user_group(
-            self, group_comment: str, expired_time: datetime = datetime.strptime(authentication_default_values["expired_time"], authentication_default_values["date_fmt"]), max_successed_login_times: int = authentication_default_values["max_login_times"], max_failed_login_times: int = authentication_default_values["max_error_times"], is_deleted: bool = authentication_default_values["is_deleted"]) -> _Authentication_group:
-        '''
-        group_comment 是必须的
-        '''
-        return self._Authentication_group(
-            expired_time=expired_time,
-            max_successed_login_times=max_successed_login_times,
-            max_failed_login_times=max_failed_login_times,
-            is_deleted=is_deleted,
-            group_comment=group_comment
-        )
-
-    def user(
-        self, account: str, password: str, nickname: str, successed_login_times: int = authentication_default_values["login_times"], failed_login_times: int = authentication_default_values["error_times"], auth_group_fk: int = authentication_default_values["auth_group_id"], auth_group=None
-    ) -> _User_login:
-        '''
-        必须填写 account, password, nickname
-        '''
-        if auth_group is None:
-            person = self._User_login(
-                account=account,
-                password=password,
-                nickname=nickname,
-                successed_login_times=successed_login_times,
-                failed_login_times=failed_login_times,
-                auth_group_fk=auth_group_fk,
-            )
-        else:
-            person = self._User_login(
-                account=account,
-                password=password,
-                nickname=nickname,
-                successed_login_times=successed_login_times,
-                failed_login_times=failed_login_times,
-                auth_group=auth_group,
-            )
-        return person
-
-    def read_config(self, config: str) -> dict:
+    @staticmethod
+    def read_config(config: str) -> dict:
         '''
         config:只接受文件路径
         '''
         with open(config, "r", encoding="utf-8") as f:
             return toml.load(f)
+
+    # Instance
+
+    def __init__(self, config: Union[str, dict], engine_conf: str) -> None:
+        '''
+        config: 字典或者配置的文件路径
+        engine_conf: 那个键为 config root
+        '''
+        if isinstance(config, str):
+            conf = self.read_config(config)
+        else:
+            conf = deepcopy(config)
+        self.conf = conf[engine_conf]
+        self.engine = sqlalchemy.create_engine(**self.conf["engine"])
+
+    def date_from_str(self, date_string: str, format: Union[None, str] = None) -> datetime:
+        """
+        将字符串日期转为 datetime
+
+        date_string: 字符串日期
+        format: 字符串格式
+        """
+        _format = format or self.conf["datetemplate"].get("format", "")
+        return datetime.strptime(date_string, _format)
+
+    def permission(
+            self,
+            permission_name: str,
+            permission_docu: str = "",) -> _Permission:
+        '''
+        返回一个 permission 对象
+        '''
+        return self._Permission(permission_name=permission_name, permission_docu=permission_docu)
+
+    def user_group(
+            self,
+            group_comment: str,
+            expired_time: Optional[datetime] = None,
+            max_successed_login_times: Optional[int] = None,
+            max_failed_login_times: Optional[int] = None,
+            is_deleted: Optional[bool] = None,
+            group_permission: Union[List[Union[str, int, "Zxs_sql_user_authentication._Permission"]], None] = None) -> _Authentication_group:
+        '''
+        group_comment 是必须的
+        '''
+        args = {"group_comment": group_comment,
+                "expired_time": expired_time,
+                "max_successed_login_times": max_successed_login_times,
+                "max_failed_login_times": max_failed_login_times,
+                "is_deleted": is_deleted,
+                "group_permission": group_permission}
+        # args = locals().copy()
+        # args.pop("self")
+        temp = self.conf["group"].copy()
+        temp.update({k: v for k, v in args.items() if v is not None})
+        temp["expired_time"] = self.date_from_str(temp["expired_time"])
+        res = set()
+        if temp["group_permission"] is not None:
+            for key in temp["group_permission"]:
+                if isinstance(key, self._Permission):
+                    res.add(key)
+                else:
+                    res.add(self.query_permission(key)[0])
+            temp.pop("group_permission")
+        temp = self._Authentication_group(** temp)
+        if res:
+            temp.group_permission.update(res)
+        return temp
+
+    def user(
+            self,
+            account: str,
+            password: str,
+            nickname: str,
+            successed_login_times: Union[int, None] = None,
+            failed_login_times: Union[int, None] = None,
+            auth_group_fk: Union[int, None] = None,
+            auth_group: Union[str, int, None, "Zxs_sql_user_authentication._Authentication_group"] = None,
+            user_permission: Union[List[Union[str, int, "Zxs_sql_user_authentication._Permission"]], None] = None) -> _User_login:
+        '''
+        必须填写 account, password, nickname
+        '''
+        args = {"account": account,
+                "password": password,
+                "nickname": nickname,
+                "successed_login_times": successed_login_times,
+                "failed_login_times": failed_login_times,
+                "auth_group_fk": auth_group_fk,
+                "auth_group": auth_group,
+                "user_permission": user_permission}
+        # args = locals().copy()
+        # args.pop("self")
+        temp = self.conf["user"].copy()
+        temp.update({k: v for k, v in args.items() if v is not None})
+        if temp["auth_group"] is not None:
+            if not isinstance(temp["auth_group"], self._Authentication_group):
+                res = self.query_group(temp["auth_group"])
+            else:
+                res = [temp["auth_group"]]
+            temp["auth_group"] = res[0]
+        res = set()
+        if temp["user_permission"] is not None:
+            for key in temp["user_permission"]:
+                if not isinstance(key, self._Permission):
+                    res.add(self.query_permission(key)[0])
+                else:
+                    res.add(key)
+        temp.pop("user_permission")
+        temp["hashed_pw"] = hash_a_pw(temp["password"])
+        temp.pop("password")
+        temp = self._User_login(**temp)
+        if res:
+            temp.user_permission.update(res)
+        return temp
 
     def create_all_table(self) -> bool:
         '''
@@ -162,7 +268,8 @@ class Zxs_sql_user_authentication():
         '''
         self.Base.metadata.create_all(self.engine)
         try:
-            self.add_group(self.authentication_default_values["group_comment"])
+            self.add_all_records([self.permission(**self.conf["permission"])])
+            self.add_all_records([self.user_group(**self.conf["group"])])
             return True
         except Exception:
             return False
@@ -171,8 +278,8 @@ class Zxs_sql_user_authentication():
         '''
         records：list[表实例]
         '''
-        with sqlalchemy.orm.Session() as Se:
-            Se.add_all(records)
+        with self.session() as Se:
+            Se.add_all([Se.merge(x) for x in records])
             Se.commit()
 
     def __del__(self):
@@ -184,14 +291,33 @@ class Zxs_sql_user_authentication():
 
     @contextmanager
     def session(self) -> Generator[sqlalchemy.orm.Session, Any, Any]:
+        """
+        返回一个会自动释放的 session
+        """
         with sqlalchemy.orm.Session(self.engine) as Se:
             yield Se
+            Se.expunge_all()
+
+    def query_permission(self, idx_name: Union[int, str, None] = None) -> List[_Permission]:
+        '''
+        如果传入 int，那么查找索引
+        如果传入 str，那么查找name
+        如果为 None,那么查全表
+        return: [_Permission] nullable
+        '''
+        with self.session() as Se:
+            if isinstance(idx_name, int):
+                return Se.query(self._Permission).filter(self._Permission.permission_id == idx_name).all()
+            if isinstance(idx_name, str):
+                return Se.query(self._Permission).filter(self._Permission.permission_name == idx_name).all()
+            if idx_name is None:
+                return Se.query(self._Permission).all()
 
     def query_group(self, idx_comment: Union[int, str, None] = None) -> List[_Authentication_group]:
         '''
         如果传入 int，那么查找索引
         如果传入 str，那么查找备注
-        否则查全表
+        如果是 None， 查全表
 
         return: [_Authentication_group] nullable
         '''
@@ -200,13 +326,17 @@ class Zxs_sql_user_authentication():
                 return Se.query(self._Authentication_group).filter(self._Authentication_group.auth_group_id == idx_comment).all()
             if isinstance(idx_comment, str):
                 return Se.query(self._Authentication_group).filter(self._Authentication_group.group_comment == idx_comment).all()
-            return Se.query(self._Authentication_group).all()
+            if idx_comment is None:
+                return Se.query(self._Authentication_group).all()
 
-    def query_user(self, account: Union[str, None] = None, group: Union[int, str, None, _Authentication_group] = None) -> List[_User_login]:
+    def query_user(
+            self,
+            account: Union[str, None] = None,
+            group: Union[int, str, None, _Authentication_group] = None) -> List[_User_login]:
         '''
-        IF account is Not None, query the user.
-        ELIF group is Not None, query the users in the group.
-        ELSE query all users.
+        如果 accout 不为 None,查个人
+        如果 group 不为 None, 查组
+        都为 None 查全表
 
         return : [user] nullable
         '''
@@ -216,60 +346,15 @@ class Zxs_sql_user_authentication():
                 return Se.query(self._User_login).filter(self._User_login.account == account).all()
             # query users by group
             elif group is not None:
-                if not isinstance(group, self._Authentication_group):
-                    temp_group = self.query_group(group)
-                    if temp_group:
-                        temp_group = temp_group[0]
-                else:
-                    temp_group = group
-                if temp_group:
-                    return Se.query(self._User_login).filter(self._User_login.auth_group == temp_group).all()
+                _group = self.query_group(group)
+                if _group:
+                    return Se.query(self._User_login).filter(self._User_login.auth_group == _group).all()
                 else:
                     return []
             else:
-                # query all users
                 return Se.query(self._User_login).all()
 
-    def add_user(self, account: str, password: str, nickname: str, group: Union[int, str, "Zxs_sql_user_authentication._Authentication_group", None] = authentication_default_values["group_comment"]) -> _User_login:
-        '''
-        group:先查有没有 group，有则使用，没有则创建，默认使用默认组
-        account:检查 account,是否存在，存在则失败
-
-        Return: user which was added.
-        '''
-        if isinstance(group, int) or isinstance(group, str):
-            _group = self.query_group(group)
-            if _group:
-                _group = _group[0]
-            elif isinstance(group, str):
-                _group = self.user_group(group_comment=group)
-            else:
-                raise ValueError(
-                    "group must be None, str, int or Zxs_sql_user_authentication._Authentication_group instance.")
-        elif isinstance(group, self._Authentication_group):
-            _group = group
-        else:
-            raise ValueError(
-                "group must be None, str, int or Zxs_sql_user_authentication._Authentication_group instance.")
-        with self.session() as Se:
-            person = Se.query(self._User_login).filter(
-                self._User_login.account == account).all()
-            if person:
-                raise Zxs_sql_user_authentication.RecordExistsError(person[0])
-            person = self.user(account=account, password=password,
-                               nickname=nickname, auth_group=_group)
-            Se.add(person)
-            Se.commit()
-            return person
-
-    def add_group(self, group: _Authentication_group) -> _Authentication_group:
-        temp_group = self.query_group(group.group_comment)
-        if temp_group:
-            raise Zxs_sql_user_authentication.RecordExistsError(temp_group[0])
-        self.add_all_records([group])
-        return group
-
-    def login(self, account: str, password: str) -> bool:
+    def login(self, account: str, password: str) -> Union[None, _User_login]:
         """
         对用户登陆，成功后登陆次数 +1，密码错误的话失败登陆 +1
 
@@ -281,7 +366,7 @@ class Zxs_sql_user_authentication():
             group = user.auth_group
             with self.session() as Se:
                 user = Se.merge(user)
-                if user.password != password:
+                if not verify_password(password, user.hashed_pw):
                     user.failed_login_times += 1
                     Se.commit()
                     raise self.FailedLoginError("登陆密码错误")
@@ -296,9 +381,9 @@ class Zxs_sql_user_authentication():
                 else:
                     user.successed_login_times += 1
                     Se.commit()
-                    return True
+                    return user
 
-        return False
+        return None
 
     def change_password(self, account: str, password: str) -> Union[_User_login, None]:
         """
@@ -310,40 +395,29 @@ class Zxs_sql_user_authentication():
         if user:
             with self.session() as Se:
                 user = Se.merge(user[0])
-                user.password = password
+                user.hashed_pw = hash_a_pw(password)
                 user.failed_login_times = 0
                 Se.commit()
                 return user
         else:
             return None
 
-    def delthis(self):
-        with self.session() as Se:
-            user = Se.query(self._User_login).where(sqlalchemy.sql.expression.and_(self._User_login.auth_group_fk == 3,self._User_login.successed_login_times == 1)).all()
-            if user:
-                print(user[0])
+
+loginDB = Zxs_sql_user_authentication("./sql_zxs.toml", "sqlite")
 
 if __name__ == "__main__":
-    db = Zxs_sql_user_authentication("./sql_zxs.toml", "sqlite")
-    db.delthis()
-    # print(db.create_all_table())
-    # user1 = db.add_user(account="hjdxm", password="1234",
-    #                   nickname="呼喊", group="管理员")
-    # user2 = db.add_user(account="睿睿", password="1234", nickname="包子")
-    # user3 = db.add_user(account="baozi", password="1234", nickname="包子", group="前任")
-    # user3 = db.add_user(account="hanghang", password="1234", nickname="包子", group="前任")
-    # group = db.query_group("管理员")[0]
-    # users = db.query_user(group=group)
-    # for user in users:
-    #    print(user)
-    # db.change_password('baozi', '1234')
-    # try:
-        # print(db.login("baozi", "1234"))
-    # except db.FailedLoginError as e:
-        # print(e)
-    # user = db.query_user('baozi')[0]
-    # print(user)
-    # print(user.auth_group)
+    print(loginDB.query_user(account=""))
+    #    db.create_all_table()
+    #    db.add_all_records([
+    #        db.user(account="hjdxm", password="1234", nickname="tiger"),
+    #        db.user(account="baozi", password="13244", nickname="包子"),
+    #        db.user(account="diaoxiao", password="324sckj", nickname="刁校"),
+    #        db.user(account="boshi", password="sfhiwoac", nickname="博士"),
+    #    ])
+#    groups = db.query_group(None)
+#    if groups:
+#        for group in groups:
+#            print(group.to_dict())
 
 
 '''
